@@ -1348,7 +1348,7 @@ local roleESPFrame
 local roleESPEnabled = false
 local roleESPHighlights = {}
 
-local ROLE_REFRESH_TIME = 2
+local ROLE_REFRESH_TIME = 0.5
 
 local ROLE_COLORS = {
 	Murderer = Color3.fromRGB(255, 0, 0),
@@ -1508,7 +1508,7 @@ local function roleESPOn()
 		roleESPFrame.Accent.BackgroundColor3 = COLORS.Green
 
 		roleESPFrame.RefreshLabel.Text =
-			"↻  ESP active • refreshing every 2 seconds"
+			"↻  ESP active • refreshing every 0.5 seconds"
 	end
 
 	updateRoleESP()
@@ -1525,7 +1525,7 @@ local function roleESPOff()
 		roleESPFrame.Accent.BackgroundColor3 = COLORS.Red
 
 		roleESPFrame.RefreshLabel.Text =
-			"↻  Auto-refreshing every 2 seconds"
+			"↻  Auto-refreshing every 0.5 seconds"
 	end
 
 	for _, target in ipairs(Players:GetPlayers()) do
@@ -1603,7 +1603,7 @@ local function createRoleESPWindow()
 	roleSubtitle.Position = UDim2.new(0, 0, 0, 27)
 	roleSubtitle.Size = UDim2.new(1, -85, 0, 18)
 	roleSubtitle.Font = Enum.Font.Gotham
-	roleSubtitle.Text = "Advanced role detection"
+	roleSubtitle.Text = "MM2 ESP made by ShadowDev"
 	roleSubtitle.TextColor3 = COLORS.Gray
 	roleSubtitle.TextSize = 11
 	roleSubtitle.TextXAlignment = Enum.TextXAlignment.Left
@@ -1687,7 +1687,7 @@ local function createRoleESPWindow()
 	refreshLabel.Position = UDim2.fromOffset(18, 200)
 	refreshLabel.Size = UDim2.new(1, -36, 0, 22)
 	refreshLabel.Font = Enum.Font.Gotham
-	refreshLabel.Text = "↻  Auto-refreshing every 2 seconds"
+	refreshLabel.Text = "↻  Auto-refreshing every 0.5 seconds"
 	refreshLabel.TextColor3 = COLORS.Gray
 	refreshLabel.TextSize = 11
 	refreshLabel.TextXAlignment = Enum.TextXAlignment.Center
@@ -2857,6 +2857,41 @@ task.delay(3, function()
 	end
 
 	openHub()
+end)
+
+--============================================================
+-- MOVEMENT VALUE PROTECTION
+-- Reapplies Speed + JumpPower every 0.1 seconds
+--============================================================
+
+task.spawn(function()
+	while gui.Parent do
+		task.wait(0.1)
+
+		local character = player.Character
+		local humanoid = character
+			and character:FindFirstChildOfClass("Humanoid")
+
+		if humanoid and humanoid.Health > 0 then
+
+			-- Keep WalkSpeed applied
+			if CONFIG.SpeedEnabled then
+				if humanoid.WalkSpeed ~= CONFIG.WalkSpeed then
+					humanoid.WalkSpeed = CONFIG.WalkSpeed
+				end
+			end
+
+			-- Keep JumpPower applied
+			if CONFIG.JumpEnabled then
+				humanoid.UseJumpPower = true
+
+				if humanoid.JumpPower ~= CONFIG.JumpPower then
+					humanoid.JumpPower = CONFIG.JumpPower
+				end
+			end
+
+		end
+	end
 end)
 
 --============================================================
