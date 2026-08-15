@@ -1748,7 +1748,7 @@ local function createRoleTag(target, role, color)
 
 	billboard.Name = "ShadowRoleName"
 	billboard.Adornee = head
-	billboard.Size = UDim2.fromOffset(190, 55)
+	billboard.Size = UDim2.fromOffset(190, 70)
 	billboard.StudsOffset = Vector3.new(0, 3.1, 0)
 	billboard.AlwaysOnTop = true
 	billboard.MaxDistance = 250
@@ -1756,19 +1756,31 @@ local function createRoleTag(target, role, color)
 
 	local nameLabel = Instance.new("TextLabel")
 
-	nameLabel.BackgroundTransparency = 1
-	nameLabel.Size = UDim2.new(1, 0, 0, 23)
-	nameLabel.Font = Enum.Font.GothamBold
-	nameLabel.Text = target.DisplayName
-	nameLabel.TextColor3 = COLORS.White
-	nameLabel.TextSize = 13
-	nameLabel.TextStrokeTransparency = 0.25
-	nameLabel.Parent = billboard
+nameLabel.BackgroundTransparency = 1
+nameLabel.Size = UDim2.new(1, 0, 0, 23)
+nameLabel.Font = Enum.Font.GothamBold
+nameLabel.Text = "@" .. target.DisplayName
+nameLabel.TextColor3 = COLORS.White
+nameLabel.TextSize = 13
+nameLabel.TextStrokeTransparency = 0.25
+nameLabel.Parent = billboard
+
+local usernameLabel = Instance.new("TextLabel")
+
+usernameLabel.BackgroundTransparency = 1
+usernameLabel.Position = UDim2.new(0, 0, 0, 20)
+usernameLabel.Size = UDim2.new(1, 0, 0, 18)
+usernameLabel.Font = Enum.Font.GothamMedium
+usernameLabel.Text = "@" .. target.Name
+usernameLabel.TextColor3 = COLORS.Gray
+usernameLabel.TextSize = 10
+usernameLabel.TextStrokeTransparency = 0.35
+usernameLabel.Parent = billboard
 
 	local roleLabel = Instance.new("TextLabel")
 
 	roleLabel.BackgroundTransparency = 1
-	roleLabel.Position = UDim2.new(0, 0, 0, 22)
+	roleLabel.Position = UDim2.new(0, 0, 0, 37)
 	roleLabel.Size = UDim2.new(1, 0, 0, 25)
 	roleLabel.Font = Enum.Font.GothamBlack
 	roleLabel.Text = string.upper(role)
