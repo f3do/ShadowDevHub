@@ -1339,6 +1339,328 @@ local function createCommandButton(
 end
 
 --============================================================
+-- MURD TP MINI GUI
+--============================================================
+
+local murdTPGui
+local murdTPFrame
+
+local function getClosestPlayer()
+	local character = player.Character
+
+	if not character then
+		return nil
+	end
+
+	local root = character:FindFirstChild("HumanoidRootPart")
+
+	if not root then
+		return nil
+	end
+
+	local closestPlayer = nil
+	local closestDistance = math.huge
+
+	for _, target in ipairs(Players:GetPlayers()) do
+		if target ~= player then
+
+			local targetCharacter = target.Character
+			local targetRoot = targetCharacter
+				and targetCharacter:FindFirstChild("HumanoidRootPart")
+
+			local targetHumanoid = targetCharacter
+				and targetCharacter:FindFirstChildOfClass("Humanoid")
+
+			if targetRoot and targetHumanoid and targetHumanoid.Health > 0 then
+
+				local distance =
+					(root.Position - targetRoot.Position).Magnitude
+
+				if distance < closestDistance then
+					closestDistance = distance
+					closestPlayer = target
+				end
+			end
+		end
+	end
+
+	return closestPlayer
+end
+
+local function createMurdTPGui()
+
+	-- Already created
+	if murdTPGui then
+		murdTPGui.Enabled = true
+		murdTPFrame.Visible = true
+		return
+	end
+
+	--========================================================
+	-- SCREEN GUI
+	--========================================================
+
+	murdTPGui = Instance.new("ScreenGui")
+
+	murdTPGui.Name = "ShadowMurdTP"
+	murdTPGui.ResetOnSpawn = false
+	murdTPGui.IgnoreGuiInset = true
+	murdTPGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
+	murdTPGui.Parent = playerGui
+
+	--========================================================
+	-- MAIN FRAME
+	--========================================================
+
+	murdTPFrame = Instance.new("Frame")
+
+	murdTPFrame.Name = "MurdTPFrame"
+	murdTPFrame.AnchorPoint = Vector2.new(0.5, 0.5)
+	murdTPFrame.Position = UDim2.fromScale(0.5, 0.5)
+	murdTPFrame.Size = UDim2.fromOffset(280, 175)
+	murdTPFrame.BackgroundColor3 = COLORS.Background
+	murdTPFrame.BorderSizePixel = 0
+	murdTPFrame.Parent = murdTPGui
+
+	round(murdTPFrame, 18)
+	outline(murdTPFrame, COLORS.Red, 0.25, 1.5)
+
+	--========================================================
+	-- HEADER
+	--========================================================
+
+	local header = Instance.new("Frame")
+
+	header.Size = UDim2.new(1, 0, 0, 55)
+	header.BackgroundColor3 = COLORS.Panel
+	header.BorderSizePixel = 0
+	header.Parent = murdTPFrame
+
+	round(header, 18)
+
+	local title = makeLabel(
+		header,
+		"murd tp",
+		19,
+		Enum.Font.GothamBlack
+	)
+
+	title.Position = UDim2.fromOffset(16, 7)
+	title.Size = UDim2.new(1, -65, 0, 25)
+	title.TextXAlignment = Enum.TextXAlignment.Left
+
+	makeGradient(
+		title,
+		COLORS.Red,
+		COLORS.Accent2,
+		0
+	)
+
+	local subtitle = makeLabel(
+		header,
+		"Teleport utility",
+		9,
+		Enum.Font.Gotham
+	)
+
+	subtitle.Position = UDim2.fromOffset(17, 32)
+	subtitle.Size = UDim2.new(1, -65, 0, 15)
+	subtitle.TextColor3 = COLORS.Gray
+	subtitle.TextXAlignment = Enum.TextXAlignment.Left
+
+	--========================================================
+	-- CLOSE BUTTON
+	--========================================================
+
+	local closeButton = Instance.new("TextButton")
+
+	closeButton.AnchorPoint = Vector2.new(1, 0.5)
+	closeButton.Position = UDim2.new(1, -10, 0.5, 0)
+	closeButton.Size = UDim2.fromOffset(32, 32)
+	closeButton.BackgroundColor3 = COLORS.Panel3
+	closeButton.Text = "×"
+	closeButton.TextColor3 = COLORS.Gray
+	closeButton.TextSize = 21
+	closeButton.Font = Enum.Font.GothamBold
+	closeButton.AutoButtonColor = false
+	closeButton.Parent = header
+
+	round(closeButton, 9)
+
+	connect(closeButton.MouseEnter, function()
+		tween(closeButton, TWEEN_FAST, {
+			BackgroundColor3 = COLORS.Red,
+			TextColor3 = COLORS.White
+		})
+	end)
+
+	connect(closeButton.MouseLeave, function()
+		tween(closeButton, TWEEN_FAST, {
+			BackgroundColor3 = COLORS.Panel3,
+			TextColor3 = COLORS.Gray
+		})
+	end)
+
+	connect(closeButton.MouseButton1Click, function()
+		murdTPFrame.Visible = false
+	end)
+
+	--========================================================
+	-- TP CLOSEST BUTTON
+	--========================================================
+
+	local tpButton = Instance.new("TextButton")
+
+	tpButton.Position = UDim2.fromOffset(15, 72)
+	tpButton.Size = UDim2.new(1, -30, 0, 55)
+	tpButton.BackgroundColor3 = COLORS.Red
+	tpButton.BackgroundTransparency = 0.08
+	tpButton.Text = "TP CLOSEST"
+	tpButton.TextColor3 = COLORS.White
+	tpButton.TextSize = 15
+	tpButton.Font = Enum.Font.GothamBlack
+	tpButton.AutoButtonColor = false
+	tpButton.Parent = murdTPFrame
+
+	round(tpButton, 12)
+
+	outline(
+		tpButton,
+		COLORS.Red,
+		0.15,
+		1.2
+	)
+
+	connect(tpButton.MouseEnter, function()
+		tween(tpButton, TWEEN_FAST, {
+			BackgroundColor3 = Color3.fromRGB(255, 95, 105)
+		})
+	end)
+
+	connect(tpButton.MouseLeave, function()
+		tween(tpButton, TWEEN_FAST, {
+			BackgroundColor3 = COLORS.Red
+		})
+	end)
+
+	connect(tpButton.MouseButton1Click, function()
+
+		local target = getClosestPlayer()
+
+		if not target then
+
+			notify(
+				"Murd TP",
+				"No player was found.",
+				COLORS.Red
+			)
+
+			return
+		end
+
+		local character = player.Character
+		local targetCharacter = target.Character
+
+		if not character or not targetCharacter then
+			return
+		end
+
+		local root =
+			character:FindFirstChild("HumanoidRootPart")
+
+		local targetRoot =
+			targetCharacter:FindFirstChild("HumanoidRootPart")
+
+		if not root or not targetRoot then
+			return
+		end
+
+		root.CFrame =
+			targetRoot.CFrame * CFrame.new(3, 0, 0)
+
+		notify(
+			"Murd TP",
+			"Teleported next to " .. target.DisplayName,
+			COLORS.Red
+		)
+	end)
+
+	--========================================================
+	-- DRAGGING
+	--========================================================
+
+	local dragging = false
+	local dragStart
+	local startPosition
+
+	connect(header.InputBegan, function(input)
+
+		if
+			input.UserInputType == Enum.UserInputType.MouseButton1
+			or
+			input.UserInputType == Enum.UserInputType.Touch
+		then
+
+			dragging = true
+			dragStart = input.Position
+			startPosition = murdTPFrame.Position
+
+			connect(input.Changed, function()
+
+				if input.UserInputState == Enum.UserInputState.End then
+					dragging = false
+				end
+
+			end)
+		end
+	end)
+
+	connect(UserInputService.InputChanged, function(input)
+
+		if not dragging then
+			return
+		end
+
+		if
+			input.UserInputType ~= Enum.UserInputType.MouseMovement
+			and
+			input.UserInputType ~= Enum.UserInputType.Touch
+		then
+			return
+		end
+
+		local delta = input.Position - dragStart
+
+		murdTPFrame.Position = UDim2.new(
+			startPosition.X.Scale,
+			startPosition.X.Offset + delta.X,
+			startPosition.Y.Scale,
+			startPosition.Y.Offset + delta.Y
+		)
+	end)
+end
+
+--============================================================
+-- MURD TP BUTTON IN MOVEMENT
+--============================================================
+
+createCommandButton(
+	movementPage,
+	"Murd TP",
+	"Open the closest-player teleport menu.",
+	COLORS.Red,
+	function()
+
+		createMurdTPGui()
+
+		notify(
+			"Murd TP",
+			"Teleport menu opened.",
+			COLORS.Red
+		)
+	end
+)
+--============================================================
 -- ROLE ESP GUI
 --============================================================
 
