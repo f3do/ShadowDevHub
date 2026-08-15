@@ -56,6 +56,7 @@ local CONFIG = {
 	InfiniteJump = false,
 
 	Nametags = false,
+ObjectTransparency = false,
 
 	Notifications = true,
 
@@ -1244,6 +1245,77 @@ local function updateNametags()
 end
 
 --============================================================
+-- OBJECT TRANSPARENCY
+--============================================================
+
+local OBJECT_TRANSPARENCY_AMOUNT = 0.65
+local originalObjectTransparency = {}
+
+local function setObjectTransparency(enabled)
+	CONFIG.ObjectTransparency = enabled
+
+	if enabled then
+
+		for _, object in ipairs(workspace:GetDescendants()) do
+
+			if object:IsA("BasePart") then
+
+				-- Don't affect your own character
+				if not (
+					player.Character
+					and object:IsDescendantOf(player.Character)
+				) then
+
+					if originalObjectTransparency[object] == nil then
+						originalObjectTransparency[object] =
+							object.LocalTransparencyModifier
+					end
+
+					object.LocalTransparencyModifier =
+						OBJECT_TRANSPARENCY_AMOUNT
+				end
+			end
+		end
+
+	else
+
+		-- Restore original transparency
+		for object, original in pairs(originalObjectTransparency) do
+
+			if object and object.Parent then
+				object.LocalTransparencyModifier = original
+			end
+
+			originalObjectTransparency[object] = nil
+		end
+	end
+end
+
+-- Handle objects created after the toggle is enabled
+connect(workspace.DescendantAdded, function(object)
+
+	if not CONFIG.ObjectTransparency then
+		return
+	end
+
+	if not object:IsA("BasePart") then
+		return
+	end
+
+	if player.Character
+		and object:IsDescendantOf(player.Character) then
+		return
+	end
+
+	if originalObjectTransparency[object] == nil then
+		originalObjectTransparency[object] =
+			object.LocalTransparencyModifier
+	end
+
+	object.LocalTransparencyModifier =
+		OBJECT_TRANSPARENCY_AMOUNT
+end)
+--============================================================
 -- VISUAL PAGE
 --============================================================
 
@@ -1264,7 +1336,24 @@ createToggle(
 		)
 	end
 )
+createToggle(
+	visualPage,
+	"X-ray",
+	"Make the map transparent.",
+	false,
+	function(state)
 
+		setObjectTransparency(state)
+
+		notify(
+			"X-ray",
+			state
+				and "Objects are now 65% transparent."
+				or "Object transparency disabled.",
+			state and COLORS.Green or COLORS.Red
+		)
+	end
+)
 --============================================================
 -- ESP MANAGER BUTTON
 --============================================================
