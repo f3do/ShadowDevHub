@@ -1529,7 +1529,7 @@ local function createMurdTPGui()
 
 	local title = makeLabel(
 		header,
-		"murd tp",
+		"murd TP",
 		19,
 		Enum.Font.GothamBlack
 	)
@@ -1547,7 +1547,7 @@ local function createMurdTPGui()
 
 	local subtitle = makeLabel(
 		header,
-		"Teleport utility",
+		"Teleport GUI (don't shiftlock)",
 		9,
 		Enum.Font.Gotham
 	)
