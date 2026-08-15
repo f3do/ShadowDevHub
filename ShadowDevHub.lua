@@ -2633,8 +2633,39 @@ connect(flyDownButton.InputEnded, function(input)
 end)
 
 --============================================================
--- FLY SYSTEM
+-- FLY SYSTEM — V4 CAMERA DIRECTION
 --============================================================
+
+local flyAnimationDisabled = false
+local flySavedAutoRotate = true
+local flySavedPlatformStand = false
+
+local function setFlyAnimations(enabled)
+	local character = player.Character
+	if not character then
+		return
+	end
+
+	local animate = character:FindFirstChild("Animate")
+
+	if animate then
+		animate.Disabled = enabled
+	end
+
+	local humanoid = character:FindFirstChildOfClass("Humanoid")
+
+	if humanoid then
+		for _, track in ipairs(humanoid:GetPlayingAnimationTracks()) do
+			if enabled then
+				track:AdjustSpeed(0)
+			else
+				track:AdjustSpeed(1)
+			end
+		end
+	end
+
+	flyAnimationDisabled = enabled
+end
 
 stopFly = function()
 	CONFIG.Fly = false
@@ -2662,23 +2693,39 @@ stopFly = function()
 	flyUpHeld = false
 	flyDownHeld = false
 
-	flyUpButton.Visible = false
-	flyDownButton.Visible = false
+	-- Hide old vertical buttons
+	if flyUpButton then
+		flyUpButton.Visible = false
+	end
+
+	if flyDownButton then
+		flyDownButton.Visible = false
+	end
 
 	local character = player.Character
 
 	if character then
-		local humanoid =
-			character:FindFirstChildOfClass("Humanoid")
+		local humanoid = character:FindFirstChildOfClass("Humanoid")
 
 		if humanoid then
-			humanoid.PlatformStand = false
-			humanoid.AutoRotate = true
+			humanoid.PlatformStand = flySavedPlatformStand
+			humanoid.AutoRotate = flySavedAutoRotate
+
+			humanoid:ChangeState(
+				Enum.HumanoidStateType.GettingUp
+			)
 		end
+
+		setFlyAnimations(false)
 	end
 end
 
 startFly = function()
+
+	--========================================================
+	-- CLEAN PREVIOUS FLIGHT
+	--========================================================
+
 	stopFly()
 
 	local character = player.Character
@@ -2699,13 +2746,30 @@ startFly = function()
 
 	CONFIG.Fly = true
 
-	humanoid.PlatformStand = true
+	--========================================================
+	-- SAVE HUMANOID SETTINGS
+	--========================================================
+
+	flySavedAutoRotate = humanoid.AutoRotate
+	flySavedPlatformStand = humanoid.PlatformStand
+
 	humanoid.AutoRotate = false
+	humanoid.PlatformStand = true
+
+	-- Disable normal animations
+	setFlyAnimations(true)
+
+	--========================================================
+	-- ATTACHMENT
+	--========================================================
 
 	flyAttachment = Instance.new("Attachment")
-
 	flyAttachment.Name = "ShadowFlyAttachment"
 	flyAttachment.Parent = root
+
+	--========================================================
+	-- VELOCITY
+	--========================================================
 
 	flyVelocity = Instance.new("LinearVelocity")
 
@@ -2716,21 +2780,39 @@ startFly = function()
 	flyVelocity.VectorVelocity = Vector3.zero
 	flyVelocity.Parent = root
 
+	--========================================================
+	-- ORIENTATION
+	--========================================================
+
 	flyOrientation = Instance.new("AlignOrientation")
 
 	flyOrientation.Name = "ShadowFlyOrientation"
 	flyOrientation.Attachment0 = flyAttachment
 	flyOrientation.Mode =
 		Enum.OrientationAlignmentMode.OneAttachment
+
 	flyOrientation.MaxTorque = math.huge
-	flyOrientation.Responsiveness = 30
+	flyOrientation.Responsiveness = 35
 	flyOrientation.RigidityEnabled = false
 	flyOrientation.Parent = root
 
-	flyUpButton.Visible = true
-	flyDownButton.Visible = true
+	--========================================================
+	-- HIDE UP / DOWN BUTTONS
+	--========================================================
 
-	local velocity = Vector3.zero
+	if flyUpButton then
+		flyUpButton.Visible = false
+	end
+
+	if flyDownButton then
+		flyDownButton.Visible = false
+	end
+
+	--========================================================
+	-- FLIGHT
+	--========================================================
+
+	local currentVelocity = Vector3.zero
 
 	flyConnection =
 		RunService.RenderStepped:Connect(function(deltaTime)
@@ -2740,11 +2822,10 @@ startFly = function()
 			end
 
 			if
-				not root.Parent
-				or
-				not humanoid.Parent
-				or
-				humanoid.Health <= 0
+				not character.Parent
+				or not root.Parent
+				or not humanoid.Parent
+				or humanoid.Health <= 0
 			then
 				stopFly()
 				return
@@ -2756,64 +2837,112 @@ startFly = function()
 				return
 			end
 
-			local move = humanoid.MoveDirection
+			--================================================
+			-- MOBILE / PC JOYSTICK INPUT
+			--================================================
 
-			local target =
-				move * CONFIG.FlySpeed
+			local moveDirection = humanoid.MoveDirection
 
-			local vertical = 0
+			local joystickAmount =
+				math.clamp(moveDirection.Magnitude, 0, 1)
 
-			if
-				flyUpHeld
-				or
-				humanoid.Jump
-				or
-				UserInputService:IsKeyDown(
-					Enum.KeyCode.Space
-				)
-			then
-				vertical = CONFIG.FlySpeed
+			--================================================
+			-- CAMERA DIRECTION
+			--================================================
 
-			elseif flyDownHeld then
-				vertical = -CONFIG.FlySpeed
+			local cameraLook =
+				camera.CFrame.LookVector
+
+			local cameraRight =
+				camera.CFrame.RightVector
+
+			--================================================
+			-- CAMERA-BASED MOVEMENT
+			--================================================
+			--
+			-- Forward/backward follows the CAMERA'S FULL
+			-- LookVector, meaning looking up/down changes
+			-- the flight altitude.
+			--
+			-- Left/right still follows the camera's RightVector.
+			--
+
+			local forwardAmount = 0
+			local rightAmount = 0
+
+			if moveDirection.Magnitude > 0.01 then
+
+				forwardAmount =
+					moveDirection:Dot(cameraLook)
+
+				rightAmount =
+					moveDirection:Dot(cameraRight)
+
 			end
 
-			target = Vector3.new(
-				target.X,
-				vertical,
-				target.Z
-			)
+			--================================================
+			-- FINAL CAMERA MOVEMENT
+			--================================================
 
-			local alpha = math.clamp(
-				deltaTime * 10,
-				0,
-				1
-			)
+			local flightDirection =
+				(cameraLook * forwardAmount)
+				+
+				(cameraRight * rightAmount)
 
-			velocity = velocity:Lerp(
-				target,
-				alpha
-			)
+			-- Normalize so diagonal movement isn't faster
+			if flightDirection.Magnitude > 1 then
+				flightDirection =
+					flightDirection.Unit
+			end
 
-			flyVelocity.VectorVelocity = velocity
+			-- Apply joystick magnitude
+			local targetVelocity =
+				flightDirection
+				* CONFIG.FlySpeed
+				* joystickAmount
 
-			local look = camera.CFrame.LookVector
+			--================================================
+			-- SMOOTH ACCELERATION
+			--================================================
 
-			local flat = Vector3.new(
-				look.X,
-				0,
-				look.Z
-			)
+			local smoothing =
+				math.clamp(
+					deltaTime * 9,
+					0,
+					1
+				)
 
-			if flat.Magnitude > 0.01 then
-				flat = flat.Unit
+			currentVelocity =
+				currentVelocity:Lerp(
+					targetVelocity,
+					smoothing
+				)
+
+			flyVelocity.VectorVelocity =
+				currentVelocity
+
+			--================================================
+			-- FACE CAMERA
+			--================================================
+
+			if cameraLook.Magnitude > 0.01 then
 
 				flyOrientation.CFrame =
 					CFrame.lookAt(
 						root.Position,
-						root.Position + flat
+						root.Position + cameraLook
 					)
+
 			end
+
+			--================================================
+			-- KEEP ANIMATIONS DISABLED
+			--================================================
+
+			if not flyAnimationDisabled then
+				setFlyAnimations(true)
+			end
+
 		end)
 end
 
