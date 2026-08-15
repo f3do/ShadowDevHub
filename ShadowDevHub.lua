@@ -1665,7 +1665,7 @@ local function createMurdTPGui()
 		end
 
 		root.CFrame =
-			targetRoot.CFrame * CFrame.new(3, 0, 0)
+			targetRoot.CFrame * CFrame.new(0, 0, 3)
 
 		notify(
 			"Murd TP",
