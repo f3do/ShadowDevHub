@@ -137,6 +137,20 @@ local startFly
 local stopFly
 
 --============================================================
+-- AIM TARGET STATE
+--============================================================
+
+local aimGui
+local aimFrame
+local aimReopen
+
+local aiming = false
+local selectedPlayer = nil
+local aimTargetLabel
+local aimToggle
+
+local aimRenderConnection
+--============================================================
 -- HELPERS
 --============================================================
 
@@ -1077,6 +1091,630 @@ createToggle(
 	end
 )
 
+--============================================================
+-- STATIC MYSTERY 2 — AIM TARGET SYSTEM
+--============================================================
+
+local function getValidAimPlayers()
+	local list = {}
+
+	for _, target in ipairs(Players:GetPlayers()) do
+		if target ~= player then
+
+			local character = target.Character
+
+			local humanoid =
+				character
+				and character:FindFirstChildOfClass("Humanoid")
+
+			local root =
+				character
+				and character:FindFirstChild("HumanoidRootPart")
+
+			if humanoid and root and humanoid.Health > 0 then
+				table.insert(list, target)
+			end
+		end
+	end
+
+	return list
+end
+
+local function getClosestAimPlayer()
+	local character = player.Character
+
+	if not character then
+		return nil
+	end
+
+	local root =
+		character:FindFirstChild("HumanoidRootPart")
+
+	if not root then
+		return nil
+	end
+
+	local closest = nil
+	local closestDistance = math.huge
+
+	for _, target in ipairs(getValidAimPlayers()) do
+
+		local targetCharacter = target.Character
+
+		local targetRoot =
+			targetCharacter
+			and targetCharacter:FindFirstChild("HumanoidRootPart")
+
+		if targetRoot then
+
+			local distance =
+				(root.Position - targetRoot.Position).Magnitude
+
+			if distance < closestDistance then
+				closestDistance = distance
+				closest = target
+			end
+		end
+	end
+
+	return closest
+end
+
+local function updateAimTargetLabel()
+	if not aimTargetLabel then
+		return
+	end
+
+	if selectedPlayer then
+		aimTargetLabel.Text =
+			"Target: " .. selectedPlayer.DisplayName
+	else
+		aimTargetLabel.Text = "Target: None"
+	end
+end
+
+local function selectClosestAimPlayer()
+	selectedPlayer = getClosestAimPlayer()
+	updateAimTargetLabel()
+end
+
+local function cycleAimTarget(direction)
+	local players = getValidAimPlayers()
+
+	if #players == 0 then
+		selectedPlayer = nil
+		updateAimTargetLabel()
+		return
+	end
+
+	if not selectedPlayer then
+		selectedPlayer = players[1]
+		updateAimTargetLabel()
+		return
+	end
+
+	local currentIndex =
+		table.find(players, selectedPlayer)
+
+	if not currentIndex then
+		currentIndex = 1
+	else
+		currentIndex += direction
+
+		if currentIndex > #players then
+			currentIndex = 1
+		elseif currentIndex < 1 then
+			currentIndex = #players
+		end
+	end
+
+	selectedPlayer = players[currentIndex]
+
+	updateAimTargetLabel()
+end
+
+local function aimAtSelectedPlayer()
+	if not selectedPlayer then
+		return
+	end
+
+	local character =
+		selectedPlayer.Character
+
+	if not character then
+		return
+	end
+
+	local humanoid =
+		character:FindFirstChildOfClass("Humanoid")
+
+	if not humanoid or humanoid.Health <= 0 then
+		return
+	end
+
+	local targetPart =
+		character:FindFirstChild("Head")
+		or character:FindFirstChild("HumanoidRootPart")
+
+	if not targetPart then
+		return
+	end
+
+	local camera = workspace.CurrentCamera
+
+	if not camera then
+		return
+	end
+
+	camera.CFrame =
+		CFrame.lookAt(
+			camera.CFrame.Position,
+			targetPart.Position
+		)
+end
+
+local function stopAim()
+	aiming = false
+
+	if aimToggle then
+		aimToggle.Text = "AIM: OFF"
+		aimToggle.BackgroundColor3 = COLORS.Panel3
+	end
+
+	local character = player.Character
+
+	if character then
+
+		local humanoid =
+			character:FindFirstChildOfClass("Humanoid")
+
+		if humanoid then
+			workspace.CurrentCamera.CameraSubject =
+				humanoid
+		end
+	end
+end
+
+--============================================================
+-- AIM TARGET MINI GUI
+--============================================================
+
+local function createAimTargetGui()
+
+	if aimGui then
+		aimGui.Enabled = true
+
+		if aimFrame then
+			aimFrame.Visible = true
+		end
+
+		if aimReopen then
+			aimReopen.Visible = false
+		end
+
+		return
+	end
+
+	--========================================================
+	-- SCREEN GUI
+	--========================================================
+
+	aimGui = Instance.new("ScreenGui")
+
+	aimGui.Name = "ShadowAimTarget"
+	aimGui.ResetOnSpawn = false
+	aimGui.IgnoreGuiInset = true
+	aimGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
+	aimGui.Parent = playerGui
+
+	--========================================================
+	-- MAIN FRAME
+	--========================================================
+
+	aimFrame = Instance.new("Frame")
+
+	aimFrame.Name = "AimFrame"
+	aimFrame.AnchorPoint = Vector2.new(0.5, 0.5)
+	aimFrame.Position = UDim2.fromScale(0.5, 0.25)
+	aimFrame.Size = UDim2.fromOffset(310, 155)
+	aimFrame.BackgroundColor3 = COLORS.Background
+	aimFrame.BorderSizePixel = 0
+	aimFrame.Parent = aimGui
+
+	round(aimFrame, 16)
+
+	outline(
+		aimFrame,
+		COLORS.Accent2,
+		0.15,
+		1.5
+	)
+
+	--========================================================
+	-- HEADER
+	--========================================================
+
+	local aimHeader = Instance.new("Frame")
+
+	aimHeader.Size =
+		UDim2.new(1, 0, 0, 45)
+
+	aimHeader.BackgroundColor3 =
+		COLORS.Panel
+
+	aimHeader.BorderSizePixel = 0
+	aimHeader.Parent = aimFrame
+
+	round(aimHeader, 16)
+
+	local aimTitle = makeLabel(
+		aimHeader,
+		"STATIC MYSTERY 2",
+		17,
+		Enum.Font.GothamBlack
+	)
+
+	aimTitle.Position =
+		UDim2.fromOffset(12, 4)
+
+	aimTitle.Size =
+		UDim2.new(1, -80, 0, 30)
+
+	aimTitle.TextXAlignment =
+		Enum.TextXAlignment.Center
+
+	makeGradient(
+		aimTitle,
+		COLORS.Accent,
+		COLORS.Accent2,
+		0
+	)
+
+	local targetIcon = makeLabel(
+		aimHeader,
+		"🎯",
+		20,
+		Enum.Font.GothamBold
+	)
+
+	targetIcon.Position =
+		UDim2.new(0.5, 58, 0, 2)
+
+	targetIcon.Size =
+		UDim2.fromOffset(35, 35)
+
+	--========================================================
+	-- CLOSE
+	--========================================================
+
+	local aimClose = Instance.new("TextButton")
+
+	aimClose.Size =
+		UDim2.fromOffset(32, 32)
+
+	aimClose.Position =
+		UDim2.new(1, -40, 0, 7)
+
+	aimClose.BackgroundColor3 =
+		COLORS.Panel3
+
+	aimClose.BorderSizePixel = 0
+	aimClose.Text = "×"
+	aimClose.TextColor3 = COLORS.Gray
+	aimClose.TextSize = 21
+	aimClose.Font = Enum.Font.GothamBold
+	aimClose.AutoButtonColor = false
+	aimClose.Parent = aimHeader
+
+	round(aimClose, 9)
+
+	connect(aimClose.MouseEnter, function()
+		tween(aimClose, TWEEN_FAST, {
+			BackgroundColor3 = COLORS.Red,
+			TextColor3 = COLORS.White
+		})
+	end)
+
+	connect(aimClose.MouseLeave, function()
+		tween(aimClose, TWEEN_FAST, {
+			BackgroundColor3 = COLORS.Panel3,
+			TextColor3 = COLORS.Gray
+		})
+	end)
+
+	connect(aimClose.MouseButton1Click, function()
+		stopAim()
+
+		aimFrame.Visible = false
+
+		if aimReopen then
+			aimReopen.Visible = true
+		end
+	end)
+
+	--========================================================
+	-- TARGET LABEL
+	--========================================================
+
+	aimTargetLabel = makeLabel(
+		aimFrame,
+		"Target: None",
+		13,
+		Enum.Font.GothamMedium
+	)
+
+	aimTargetLabel.Position =
+		UDim2.fromOffset(15, 48)
+
+	aimTargetLabel.Size =
+		UDim2.new(1, -30, 0, 27)
+
+	aimTargetLabel.TextColor3 =
+		COLORS.Gray
+
+	aimTargetLabel.TextXAlignment =
+		Enum.TextXAlignment.Center
+
+	--========================================================
+	-- PREVIOUS
+	--========================================================
+
+	local previous = Instance.new("TextButton")
+
+	previous.Size =
+		UDim2.fromOffset(50, 42)
+
+	previous.Position =
+		UDim2.fromOffset(15, 92)
+
+	previous.BackgroundColor3 =
+		COLORS.Panel2
+
+	previous.BorderSizePixel = 0
+	previous.Text = "◀"
+	previous.TextColor3 = COLORS.White
+	previous.TextSize = 18
+	previous.Font = Enum.Font.GothamBold
+	previous.AutoButtonColor = false
+	previous.Parent = aimFrame
+
+	round(previous, 10)
+
+	connect(previous.MouseButton1Click, function()
+		cycleAimTarget(-1)
+	end)
+
+	--========================================================
+	-- AIM TOGGLE
+	--========================================================
+
+	aimToggle = Instance.new("TextButton")
+
+	aimToggle.Size =
+		UDim2.fromOffset(160, 42)
+
+	aimToggle.Position =
+		UDim2.fromOffset(75, 92)
+
+	aimToggle.BackgroundColor3 =
+		COLORS.Panel3
+
+	aimToggle.BorderSizePixel = 0
+	aimToggle.Text = "AIM: OFF"
+	aimToggle.TextColor3 = COLORS.White
+	aimToggle.TextSize = 13
+	aimToggle.Font = Enum.Font.GothamBold
+	aimToggle.AutoButtonColor = false
+	aimToggle.Parent = aimFrame
+
+	round(aimToggle, 10)
+
+	connect(aimToggle.MouseButton1Click, function()
+
+		aiming = not aiming
+
+		if aiming then
+
+			if not selectedPlayer then
+				selectClosestAimPlayer()
+			end
+
+			aimToggle.Text = "AIM: ON"
+
+			aimToggle.BackgroundColor3 =
+				COLORS.Green
+
+			notify(
+				"Aim Target",
+				"Aim enabled.",
+				COLORS.Green
+			)
+
+		else
+
+			stopAim()
+
+			notify(
+				"Aim Target",
+				"Aim disabled.",
+				COLORS.Red
+			)
+		end
+	end)
+
+	--========================================================
+	-- NEXT
+	--========================================================
+
+	local nextButton = Instance.new("TextButton")
+
+	nextButton.Size =
+		UDim2.fromOffset(50, 42)
+
+	nextButton.Position =
+		UDim2.fromOffset(245, 92)
+
+	nextButton.BackgroundColor3 =
+		COLORS.Panel2
+
+	nextButton.BorderSizePixel = 0
+	nextButton.Text = "▶"
+	nextButton.TextColor3 = COLORS.White
+	nextButton.TextSize = 18
+	nextButton.Font = Enum.Font.GothamBold
+	nextButton.AutoButtonColor = false
+	nextButton.Parent = aimFrame
+
+	round(nextButton, 10)
+
+	connect(nextButton.MouseButton1Click, function()
+		cycleAimTarget(1)
+	end)
+
+	--========================================================
+	-- REOPEN BUTTON
+	--========================================================
+
+	aimReopen = Instance.new("TextButton")
+
+	aimReopen.Name = "AimReopen"
+	aimReopen.Size =
+		UDim2.fromOffset(52, 52)
+
+	aimReopen.Position =
+		UDim2.new(0, 18, 1, -72)
+
+	aimReopen.BackgroundColor3 =
+		COLORS.Panel
+
+	aimReopen.BorderSizePixel = 0
+	aimReopen.Text = "🎯"
+	aimReopen.TextSize = 23
+	aimReopen.Font = Enum.Font.GothamBold
+	aimReopen.AutoButtonColor = false
+	aimReopen.Visible = false
+	aimReopen.Parent = aimGui
+
+	round(aimReopen, 26)
+
+	outline(
+		aimReopen,
+		COLORS.Accent2,
+		0.25,
+		1.4
+	)
+
+	connect(aimReopen.MouseButton1Click, function()
+
+		aimFrame.Visible = true
+		aimReopen.Visible = false
+
+	end)
+
+	--========================================================
+	-- DRAGGING
+	--========================================================
+
+	local dragging = false
+	local dragStart
+	local startPosition
+
+	connect(aimHeader.InputBegan, function(input)
+
+		if
+			input.UserInputType ==
+				Enum.UserInputType.MouseButton1
+			or
+			input.UserInputType ==
+				Enum.UserInputType.Touch
+		then
+
+			dragging = true
+			dragStart = input.Position
+			startPosition = aimFrame.Position
+
+			connect(input.Changed, function()
+
+				if input.UserInputState ==
+					Enum.UserInputState.End
+				then
+					dragging = false
+				end
+
+			end)
+		end
+	end)
+
+	connect(UserInputService.InputChanged, function(input)
+
+		if not dragging then
+			return
+		end
+
+		if
+			input.UserInputType ~=
+				Enum.UserInputType.MouseMovement
+			and
+			input.UserInputType ~=
+				Enum.UserInputType.Touch
+		then
+			return
+		end
+
+		local delta =
+			input.Position - dragStart
+
+		aimFrame.Position =
+			UDim2.new(
+				startPosition.X.Scale,
+				startPosition.X.Offset + delta.X,
+				startPosition.Y.Scale,
+				startPosition.Y.Offset + delta.Y
+			)
+	end)
+
+	--========================================================
+	-- INITIAL TARGET
+	--========================================================
+
+	selectClosestAimPlayer()
+end
+
+--============================================================
+-- AIM LOOP
+--============================================================
+
+aimRenderConnection =
+	RunService.RenderStepped:Connect(function()
+
+		if not aiming then
+			return
+		end
+
+		if not selectedPlayer then
+			selectClosestAimPlayer()
+			return
+		end
+
+		local character =
+			selectedPlayer.Character
+
+		local humanoid =
+			character
+			and character:FindFirstChildOfClass("Humanoid")
+
+		if
+			not character
+			or not humanoid
+			or humanoid.Health <= 0
+		then
+
+			cycleAimTarget(1)
+			return
+		end
+
+		aimAtSelectedPlayer()
+	end)
 --============================================================
 -- NAMETAG SYSTEM
 --============================================================
@@ -2312,7 +2950,26 @@ createCommandButton(
 		)
 	end
 )
+--============================================================
+-- AIM TARGET BUTTON
+--============================================================
 
+createCommandButton(
+	visualPage,
+	"Aim Target",
+	"Open the Static Mystery 2 target selector.",
+	COLORS.Accent2,
+	function()
+
+		createAimTargetGui()
+
+		notify(
+			"Aim Target",
+			"Aim target menu opened.",
+			COLORS.Accent2
+		)
+	end
+)
 --============================================================
 -- SERVER PAGE
 --============================================================
@@ -3452,7 +4109,13 @@ end)
 
 gui.Destroying:Connect(function()
 	stopFly()
+	stopAim()
 	roleESPOff()
+
+	if aimRenderConnection then
+		aimRenderConnection:Disconnect()
+		aimRenderConnection = nil
+	end
 
 	for target in pairs(nametags) do
 		removeNametag(target)
